@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import re
 import shutil
 import signal
@@ -49,6 +50,47 @@ def lock_session() -> bool:
     if try_cmd(["xscreensaver-command","-lock"]): return True
     return False
 
+# --- Added: check whether the session is locked and wait until it unlocks ---
+
+def session_locked() -> bool:
+    """Best-effort check if the current session is locked."""
+    # Prefer systemd/logind LockedHint when available
+    sess = os.environ.get("XDG_SESSION_ID")
+    if shutil.which("loginctl") and sess:
+        try:
+            r = subprocess.run(
+                ["loginctl", "show-session", sess, "-p", "LockedHint"],
+                capture_output=True, text=True, check=False
+            )
+            return "LockedHint=yes" in r.stdout
+        except Exception:
+            pass
+    # GNOME screensaver state via D-Bus
+    if shutil.which("gdbus"):
+        try:
+            r = subprocess.run(
+                ["gdbus","call","--session","--dest","org.gnome.ScreenSaver",
+                 "--object-path","/org/gnome/ScreenSaver",
+                 "--method","org.gnome.ScreenSaver.GetActive"],
+                capture_output=True, text=True, check=False
+            )
+            return "true" in r.stdout.lower()
+        except Exception:
+            pass
+    return False  # if we can't tell, assume unlocked
+
+def wait_until_unlocked(poll_interval: float = 1.0) -> None:
+    """Block until the session is unlocked (best-effort)."""
+    # If we can't detect lock state, return immediately (don’t hang).
+    unknown_capable = shutil.which("loginctl") or shutil.which("gdbus")
+    if not unknown_capable:
+        return
+    # Sleep until we observe unlocked
+    while session_locked():
+        time.sleep(poll_interval)
+
+# ---------------------------------------------------------------------------
+
 def graceful_exit(signum, frame):
     print(f"\nReceived signal {signum}; exiting.", flush=True)
     sys.exit(0)
@@ -68,32 +110,39 @@ def main():
     signal.signal(signal.SIGINT, graceful_exit)
     signal.signal(signal.SIGTERM, graceful_exit)
 
-    print(f"Focus for {int(focus_s)}s → warn → {int(grace_s)}s → lock", flush=True)
-
-    t0 = time.monotonic()
-    # Focus period
+    # --- Changed: loop forever; after unlock, restart the timer ---
     while True:
-        remaining = focus_s - (time.monotonic() - t0)
-        if remaining <= 0:
-            break
-        time.sleep(min(1.0, max(0.0, remaining)))
+        print(f"Focus for {int(focus_s)}s → warn → {int(grace_s)}s → lock", flush=True)
+        t0 = time.monotonic()
 
-    notify("Time to take a break 🤸", "You’ve hit your focus limit. 15 min until auto-lock.")
+        # Focus period
+        while True:
+            remaining = focus_s - (time.monotonic() - t0)
+            if remaining <= 0:
+                break
+            time.sleep(min(1.0, max(0.0, remaining)))
 
-    # Grace period
-    g0 = time.monotonic()
-    while True:
-        remaining = grace_s - (time.monotonic() - g0)
-        if remaining <= 0:
-            break
-        time.sleep(min(1.0, max(0.0, remaining)))
+        notify("Time to take a break 🤸",
+               f"You’ve hit your focus limit. {int(grace_s)}s until auto-lock.")
 
-    # Lock
-    if lock_session():
-        print("Locked the session.", flush=True)
-    else:
-        notify("Auto-lock failed", "Couldn’t lock the session automatically.")
-        print("WARNING: Lock command failed; install/choose a compatible locker.", flush=True)
+        # Grace period
+        g0 = time.monotonic()
+        while True:
+            remaining = grace_s - (time.monotonic() - g0)
+            if remaining <= 0:
+                break
+            time.sleep(min(1.0, max(0.0, remaining)))
+
+        # Lock
+        if lock_session():
+            print("Locked the session.", flush=True)
+        else:
+            notify("Auto-lock failed", "Couldn’t lock the session automatically.")
+            print("WARNING: Lock command failed; install/choose a compatible locker.", flush=True)
+
+        # Wait for unlock, then restart loop
+        wait_until_unlocked()
+        print("Detected unlock. Restarting timer…", flush=True)
 
 if __name__ == "__main__":
     main()

@@ -103,7 +103,7 @@ def run_one_cycle(focus_s: float, grace_s: float) -> None:
             break
         time.sleep(min(1.0, max(0.0, remaining)))
 
-    notify("Time to take a break 🤸", f"You’ve hit your focus limit. {int(grace_s)}s until auto-lock.")
+    notify("Time to take a break 🤸", f"You’ve hit your focus limit. {int(grace_s // 60)}m until auto-lock.")
 
     # Grace
     g0 = time.monotonic()

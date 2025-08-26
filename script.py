@@ -50,11 +50,10 @@ def lock_session() -> bool:
     if try_cmd(["xscreensaver-command","-lock"]): return True
     return False
 
-# --- Added: check whether the session is locked and wait until it unlocks ---
+# --- lock state helpers ---
 
 def session_locked() -> bool:
     """Best-effort check if the current session is locked."""
-    # Prefer systemd/logind LockedHint when available
     sess = os.environ.get("XDG_SESSION_ID")
     if shutil.which("loginctl") and sess:
         try:
@@ -65,7 +64,6 @@ def session_locked() -> bool:
             return "LockedHint=yes" in r.stdout
         except Exception:
             pass
-    # GNOME screensaver state via D-Bus
     if shutil.which("gdbus"):
         try:
             r = subprocess.run(
@@ -81,15 +79,54 @@ def session_locked() -> bool:
 
 def wait_until_unlocked(poll_interval: float = 1.0) -> None:
     """Block until the session is unlocked (best-effort)."""
-    # If we can't detect lock state, return immediately (don’t hang).
-    unknown_capable = shutil.which("loginctl") or shutil.which("gdbus")
-    if not unknown_capable:
+    if not (shutil.which("loginctl") or shutil.which("gdbus")):
         return
-    # Sleep until we observe unlocked
     while session_locked():
         time.sleep(poll_interval)
 
-# ---------------------------------------------------------------------------
+# --- new: one-cycle runner that aborts on manual lock ---
+
+def run_one_cycle(focus_s: float, grace_s: float) -> None:
+    print(f"Focus for {int(focus_s)}s → warn → {int(grace_s)}s → lock", flush=True)
+
+    # Focus
+    t0 = time.monotonic()
+    while True:
+        if session_locked():  # manual lock detected
+            print("Detected manual lock during focus; waiting for unlock…", flush=True)
+            wait_until_unlocked()
+            print("Unlocked. Restarting timer…", flush=True)
+            return  # abort this cycle and let caller restart fresh
+        remaining = focus_s - (time.monotonic() - t0)
+        if remaining <= 0:
+            break
+        time.sleep(min(1.0, max(0.0, remaining)))
+
+    notify("Time to take a break 🤸", f"You’ve hit your focus limit. {int(grace_s)}s until auto-lock.")
+
+    # Grace
+    g0 = time.monotonic()
+    while True:
+        if session_locked():  # manual lock during grace
+            print("Detected manual lock during grace; waiting for unlock…", flush=True)
+            wait_until_unlocked()
+            print("Unlocked. Restarting timer…", flush=True)
+            return
+        remaining = grace_s - (time.monotonic() - g0)
+        if remaining <= 0:
+            break
+        time.sleep(min(1.0, max(0.0, remaining)))
+
+    # Auto-lock (script-initiated)
+    if lock_session():
+        print("Locked the session (auto).", flush=True)
+    else:
+        notify("Auto-lock failed", "Couldn’t lock the session automatically.")
+        print("WARNING: Lock command failed; install/choose a compatible locker.", flush=True)
+
+    # After script-initiated lock, wait for unlock, then return to restart
+    wait_until_unlocked()
+    print("Detected unlock. Restarting timer…", flush=True)
 
 def graceful_exit(signum, frame):
     print(f"\nReceived signal {signum}; exiting.", flush=True)
@@ -106,43 +143,12 @@ def main():
     focus_s = parse_duration(args.focus, 45)
     grace_s = parse_duration(args.grace, 15)
 
-    # Handle Ctrl+C / termination nicely
     signal.signal(signal.SIGINT, graceful_exit)
     signal.signal(signal.SIGTERM, graceful_exit)
 
-    # --- Changed: loop forever; after unlock, restart the timer ---
+    # loop forever: restart after manual or auto unlock
     while True:
-        print(f"Focus for {int(focus_s)}s → warn → {int(grace_s)}s → lock", flush=True)
-        t0 = time.monotonic()
-
-        # Focus period
-        while True:
-            remaining = focus_s - (time.monotonic() - t0)
-            if remaining <= 0:
-                break
-            time.sleep(min(1.0, max(0.0, remaining)))
-
-        notify("Time to take a break 🤸",
-               f"You’ve hit your focus limit. {int(grace_s)}s until auto-lock.")
-
-        # Grace period
-        g0 = time.monotonic()
-        while True:
-            remaining = grace_s - (time.monotonic() - g0)
-            if remaining <= 0:
-                break
-            time.sleep(min(1.0, max(0.0, remaining)))
-
-        # Lock
-        if lock_session():
-            print("Locked the session.", flush=True)
-        else:
-            notify("Auto-lock failed", "Couldn’t lock the session automatically.")
-            print("WARNING: Lock command failed; install/choose a compatible locker.", flush=True)
-
-        # Wait for unlock, then restart loop
-        wait_until_unlocked()
-        print("Detected unlock. Restarting timer…", flush=True)
+        run_one_cycle(focus_s, grace_s)
 
 if __name__ == "__main__":
     main()

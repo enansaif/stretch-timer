@@ -87,6 +87,7 @@ def wait_until_unlocked(poll_interval: float = 1.0) -> None:
 # --- new: one-cycle runner that aborts on manual lock ---
 
 def run_one_cycle(focus_s: float, grace_s: float) -> None:
+    notify("Focus started ✅", f"Focus {int(focus_s // 60)}m, then {int(grace_s // 60)}m grace.")
     print(f"Focus for {int(focus_s)}s → warn → {int(grace_s)}s → lock", flush=True)
 
     # Focus

@@ -63,7 +63,7 @@ Install-Module -Name BurntToast -Scope CurrentUser -Force
 
 # 3. Create a scheduled task to run at logon
 $PYW = "<path-to>\pythonw.exe" # use pythonw.exe to avoid console window
-$SCRIPT = "<path-to-repo>/script.py"
+$SCRIPT = "<path-to-repo>\script.py"
 schtasks /Create /TN "Stretch-Timer" /TR "'$PYW' '$SCRIPT' --focus 45m --grace 15m" /SC ONLOGON /RL LIMITED /F
 
 # 4. Start it immediately (optional)

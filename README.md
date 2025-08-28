@@ -1,5 +1,5 @@
 # Stretch-Timer
-A simple Linux utility that promotes healthier screen time by reminding you to take regular breaks, stretch, and reset.  
+A simple Linux utility that promotes healthier screen time by reminding you to take regular breaks, stretch, and reset.
 It starts a focus session when you begin using your PC, notifies you after 45 minutes, and automatically locks your screen if you don’t take a break within the next 15 minutes.
 
 ---
@@ -11,26 +11,28 @@ Run `script.py` automatically at system startup on **Ubuntu Linux** using **syst
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<your-username>/<your-repo>.git
-cd <your-repo>
+git clone https://github.com/enansaif/stretch-timer.git
+cd stretch-timer
 
 # 2. Make sure the script is executable
 chmod +x script.py
 
 # 3. Create a user systemd service file
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/stretch-timer.service << 'EOF'
-[Unit]
-Description=Focus → warn → lock timer
+nano ~/.config/systemd/user/stretch-timer.service
 
-[Service]
-# Update the path below to the absolute path of script.py in your repo
-ExecStart=/home/<your-username>/<your-repo>/script.py --focus 45m --grace 15m
-Restart=always
-
-[Install]
-WantedBy=default.target
-EOF
+# Paste the following into the file:
+# ---------------------------------
+# [Unit]
+# Description=Focus → warn → lock timer
+#
+# [Service]
+# ExecStart=<path-to-repo>/script.py --focus 45m --grace 15m
+# Restart=always
+#
+# [Install]
+# WantedBy=default.target
+# ---------------------------------
 
 # 4. Reload systemd and enable the service
 systemctl --user daemon-reload
@@ -39,9 +41,6 @@ systemctl --user start stretch-timer.service
 
 # 5. Check service status
 systemctl --user status stretch-timer.service
-
-# (Optional) Allow user services to run even without login
-loginctl enable-linger $(whoami)
 
 # Stop the service
 systemctl --user stop stretch-timer.service

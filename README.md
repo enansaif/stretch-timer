@@ -2,14 +2,15 @@
 A simple Linux utility that promotes healthier screen time by reminding you to take regular breaks, stretch, and reset. It starts a focus session when you begin using your PC, notifies you after 45 minutes, and automatically locks your screen if you don’t take a break within the next 15 minutes.
 
 ⚠️ Requirement: Python (3.10 or later) must be installed
-# Ubuntu/Debian: sudo apt install python3 -y
-# Windows: https://www.python.org/downloads/ or choco install python -y
+- On Ubuntu/Debian: `sudo apt install python3 -y`
+- On Windows: [Download Python](https://www.python.org/downloads/) or `choco install python -y`
 
 ---
 # Stretch-Timer Service
 Run script.py automatically at system startup on **Ubuntu Linux** using **systemd** (user-level service).
 
 ## Instructions (Ubuntu)
+```bash
 # 1. Clone the repository
 git clone https://github.com/enansaif/stretch-timer.git
 cd stretch-timer
@@ -50,11 +51,11 @@ systemctl --user stop stretch-timer.service
 
 # Disable the service from starting at boot
 systemctl --user disable stretch-timer.service
+```
 
----
 ## Instructions (Windows)
-Run script.py automatically at **user logon** on Windows 10/11 using **Task Scheduler**.
-
+Run `script.py` automatically at **user logon** on Windows 10/11 using **Task Scheduler**.
+```bash
 # 1. Clone the repository
 git clone https://github.com/enansaif/stretch-timer.git
 cd stretch-timer
@@ -83,3 +84,4 @@ schtasks /Run /TN "Stretch-Timer"
 schtasks /Query /TN "Stretch-Timer" /V /FO LIST # check status
 schtasks /End /TN "Stretch-Timer" # stop
 schtasks /Delete /TN "Stretch-Timer" /F # remove
+```

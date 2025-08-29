@@ -7,9 +7,9 @@ A simple Linux utility that promotes healthier screen time by reminding you to t
 
 ---
 # Stretch-Timer Service
-Run script.py automatically at system startup on **Ubuntu Linux** using **systemd** (user-level service).
 
 ## Instructions (Ubuntu)
+Run script.py automatically at system startup on **Ubuntu Linux** using **systemd** (user-level service).
 ```bash
 # 1. Clone the repository
 git clone https://github.com/enansaif/stretch-timer.git
